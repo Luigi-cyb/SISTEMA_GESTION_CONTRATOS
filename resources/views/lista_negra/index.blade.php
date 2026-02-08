@@ -7,9 +7,16 @@
         <div class="bg-white shadow-sm sm:rounded-lg mb-6">
             <div class="p-6">
                 <div class="flex justify-between items-center">
-                    <div>
-                        <h1 class="text-2xl font-semibold text-gray-900">Lista Negra</h1>
-                        <p class="text-sm text-gray-600 mt-1">Total de registros: <span class="font-medium">{{ $listaNegra->total() }}</span></p>
+                    <div class="flex items-center">
+                        <div style="background: #fef2f2; color: #ef4444; padding: 12px; border-radius: 16px; margin-right: 20px; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.1);">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl font-bold text-gray-900">Lista Negra</h1>
+                            <p class="text-sm font-semibold text-gray-500 mt-1">Total de registros: <span class="text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100 ml-1">{{ $listaNegra->total() }}</span></p>
+                        </div>
                     </div>
                     @can('create.lista_negra')
                     <a href="{{ route('lista-negra.create') }}" 

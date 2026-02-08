@@ -89,7 +89,7 @@ class Contrato extends Model
             return $this->fecha_firma_manual;
         }
 
-        return $this->fecha_inicio?->subDay();
+        return Carbon::parse($this->fecha_inicio)->subDay();
     }
 
     /**
@@ -116,6 +116,40 @@ class Contrato extends Model
 
         // Calcular diferencia en meses (con decimales)
         return $fechaInicio->floatDiffInMonths($fechaFin);
+    }
+
+    /**
+     * ✅ NUEVO: Alias para calcularTiempoAcumuladoReal por compatibilidad con reportes
+     */
+    public function calcularMesesAcumulados(): float
+    {
+        return $this->calcularTiempoAcumuladoReal();
+    }
+
+    /**
+     * ✅ NUEVO: Calcular tiempo exacto en meses y días (Sin decimales)
+     */
+    public function calcularTiempoExacto(): string
+    {
+        $fechaInicio = Carbon::parse($this->fecha_inicio);
+        $ultimaAdenda = $this->adendas()
+            ->where('estado', '!=', 'Cancelada')
+            ->orderBy('numero_adenda', 'desc')
+            ->first();
+        $fechaFin = $ultimaAdenda
+            ? Carbon::parse($ultimaAdenda->fecha_fin)
+            : Carbon::parse($this->fecha_fin);
+
+        $diff = $fechaInicio->diff($fechaFin);
+
+        $mesesTotales = ($diff->y * 12) + $diff->m;
+
+        $resultado = "{$mesesTotales} mes(es)";
+        if ($diff->d > 0) {
+            $resultado .= " y {$diff->d} día(s)";
+        }
+
+        return $resultado;
     }
 
     /**
@@ -198,6 +232,16 @@ class Contrato extends Model
         }
     }
 
+    public function obtenerIndicadorEstabilidad(): string
+    {
+        return match ($this->getColorAlertaEstabilidad()) {
+            'green' => 'VERDE',
+            'yellow' => 'AMARILLO',
+            'red' => 'ROJO',
+            default => 'VERDE'
+        };
+    }
+
     public function getEstadoBadgeAttribute(): string
     {
         return match ($this->estado) {
@@ -208,29 +252,6 @@ class Contrato extends Model
             'Cancelado' => '<span class="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-xs font-semibold">⚫ Cancelado</span>',
             'Enviado a firmar' => '<span class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-semibold">🟣 Enviado a firmar</span>',
             default => '<span class="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-xs font-semibold">' . $this->estado . '</span>',
-        };
-    }
-
-    /**
-     * Alias para calcularTiempoAcumuladoReal para compatibilidad con reportes
-     */
-    public function calcularMesesAcumulados()
-    {
-        return $this->calcularTiempoAcumuladoReal();
-    }
-
-    /**
-     * Obtener indicador de estabilidad en texto (VERDE, AMARILLO, ROJO)
-     */
-    public function obtenerIndicadorEstabilidad(): string
-    {
-        $color = $this->getColorAlertaEstabilidad();
-
-        return match ($color) {
-            'green' => 'VERDE',
-            'yellow' => 'AMARILLO',
-            'red' => 'ROJO',
-            default => 'VERDE',
         };
     }
 }

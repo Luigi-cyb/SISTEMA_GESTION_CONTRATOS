@@ -106,7 +106,7 @@
 <body>
     <!-- Header -->
     <div class="header">
-        <h1>📋 REPORTE: CONTRATOS ACTIVOS</h1>
+        <h1>REPORTE: CONTRATOS ACTIVOS</h1>
         <p><strong>EMICONSATH S.A.</strong> - Sistema de Gestión de Contratos</p>
         <p>Generado el: {{ date('d/m/Y H:i:s') }}</p>
     </div>

@@ -1,14 +1,18 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>EMICONSATH - Sistema de Contratos</title>
+    <title>SGC - Emiconsath</title>
+    <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Sora:wght@300;400;600&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Sora:wght@300;400;600&display=swap"
+        rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -38,6 +42,7 @@
                 opacity: 0;
                 transform: translateY(-30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -49,6 +54,7 @@
                 opacity: 0;
                 transform: translateY(30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -60,6 +66,7 @@
                 opacity: 0;
                 transform: translateX(-50px);
             }
+
             to {
                 opacity: 1;
                 transform: translateX(0);
@@ -195,7 +202,7 @@
             border-left: 4px solid var(--accent);
             padding: 30px;
             border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
             transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
             animation: slideInRight 1s ease-out backwards;
             cursor: pointer;
@@ -220,7 +227,7 @@
 
         .role-card:hover {
             transform: translateY(-8px);
-            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
             border-left-color: var(--primary);
         }
 
@@ -312,7 +319,7 @@
             color: #999;
             font-size: 12px;
             background: rgba(26, 58, 82, 0.02);
-            border-top: 1px solid rgba(0,0,0,0.05);
+            border-top: 1px solid rgba(0, 0, 0, 0.05);
         }
 
         /* Responsive */
@@ -351,19 +358,20 @@
         }
     </style>
 </head>
+
 <body>
     <div class="hero">
         <!-- Lado Izquierdo -->
         <div class="hero-left">
-           <img src="{{ asset('img/logo.png') }}" 
-     alt="EMICONSATH"
-     class="h-10 w-auto object-contain ml-1">
+            <img src="{{ asset('img/logo.png') }}" alt="EMICONSATH" class="h-10 w-auto object-contain ml-1">
 
 
             <p class="subtitle">Sistema Integral de Gestión de Contratos</p>
-            
+
             <p class="description">
-                Plataforma especializada para administración de contratos laborales, control automático de vencimientos y vigilancia de estabilidad laboral. Diseñado para empresas mineras que requieren máximo control operativo y cumplimiento normativo.
+                Plataforma especializada para administración de contratos laborales, control automático de vencimientos
+                y vigilancia de estabilidad laboral. Diseñado para empresas mineras que requieren máximo control
+                operativo y cumplimiento normativo.
             </p>
 
             <div class="features">
@@ -423,4 +431,5 @@
         <p>© 2026 EMICONSATH S.A. | Sistema de Gestión de Contratos v1.0 | Todos los derechos reservados</p>
     </div>
 </body>
+
 </html>

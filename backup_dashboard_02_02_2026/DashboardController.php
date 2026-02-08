@@ -10,8 +10,6 @@ use App\Models\ListaNegra;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
-use App\Models\Adenda;
-use App\Services\AlertaService;
 
 class DashboardController extends Controller
 {
@@ -41,11 +39,8 @@ class DashboardController extends Controller
      */
     private function dashboardAdmin()
     {
-        AlertaService::generarAlertasVencimiento();
-        AlertaService::generarAlertasCumpleaños();
-        AlertaService::generarAlertasEstabilidad();
-
         $data = [
+            // Estadísticas generales
             'totalTrabajadores' => Trabajador::where('estado', 'Activo')->count(),
             'totalContratos' => Contrato::where('estado', 'Activo')->count(),
             'totalAlertasPendientes' => Alerta::where('estado', 'Pendiente')->count(),
@@ -53,16 +48,19 @@ class DashboardController extends Controller
                 ->where('prioridad', 'Crítica')->count(),
             'totalEnListaNegra' => ListaNegra::where('estado', 'Bloqueado')->count(),
 
+            // Contratos por tipo
             'contratosPorTipo' => Contrato::where('estado', 'Activo')
                 ->groupBy('tipo_contrato')
                 ->selectRaw('tipo_contrato, COUNT(*) as cantidad')
                 ->get(),
 
+            // Trabajadores por unidad
             'trabajadoresPorUnidad' => Trabajador::where('estado', 'Activo')
                 ->groupBy('unidad')
                 ->selectRaw('unidad, COUNT(*) as cantidad')
                 ->get(),
 
+            // Próximos vencimientos (30 días)
             'proximosVencimientos' => Contrato::where('estado', 'Activo')
                 ->whereBetween('fecha_fin', [now(), now()->addDays(30)])
                 ->with('trabajador')
@@ -70,6 +68,7 @@ class DashboardController extends Controller
                 ->limit(10)
                 ->get(),
 
+            // Alertas críticas pendientes
             'alertasCriticas' => Alerta::where('estado', 'Pendiente')
                 ->where('prioridad', 'Crítica')
                 ->with('trabajador')
@@ -77,6 +76,7 @@ class DashboardController extends Controller
                 ->limit(10)
                 ->get(),
 
+            // Trabajadores próximos a 5 años
             'proximosEstables' => $this->obtenerProximosEstables(),
         ];
 
@@ -88,45 +88,20 @@ class DashboardController extends Controller
      */
     private function dashboardRRHH()
     {
-        AlertaService::generarAlertasVencimiento();
-        AlertaService::generarAlertasEstabilidad();
-
-        // Query base: Activos OR Con Adendas (Renovados)
-        $queryBase = Contrato::where(function ($q) {
-            $q->where('estado', 'Activo')
-                ->orWhereHas('adendas');
-        });
-
-        $totalContratos = (clone $queryBase)->count();
-
-        // Cantidad de Renovados específicamente
-        $totalRenovados = Contrato::whereHas('adendas')->count();
-
-        // Conteos de Contratos por categorías lógicas (incluyendo renovados)
-        $contratosTemporales = (clone $queryBase)
-            ->whereIn('tipo_contrato', ['Para servicio específico', 'Por incremento de actividad'])
-            ->count();
-
-        $contratosIndefinidos = (clone $queryBase)
-            ->where('tipo_contrato', 'Indefinido')
-            ->count();
-
-        $practicantes = (clone $queryBase)
-            ->where('tipo_contrato', 'Practicante')
-            ->count();
-
-        $trabajadoresActivos = Trabajador::where('estado', 'Activo')->count();
-        $trabajadoresInactivos = Trabajador::where('estado', 'Inactivo')->count();
-
         $data = [
-            'totalContratos' => $totalContratos,
-            'totalRenovados' => $totalRenovados,
-            'contratosTemporales' => $contratosTemporales,
-            'contratosIndefinidos' => $contratosIndefinidos,
-            'practicantes' => $practicantes,
-            'trabajadoresActivos' => $trabajadoresActivos,
-            'trabajadoresInactivos' => $trabajadoresInactivos,
+            // Estadísticas RRHH
+            'totalContratos' => Contrato::where('estado', 'Activo')->count(),
+            'contratosPor3Meses' => Contrato::where('estado', 'Activo')
+                ->where('tipo_contrato', 'Temporal')
+                ->count(),
+            'contratosIndefinidos' => Contrato::where('estado', 'Activo')
+                ->where('tipo_contrato', 'Indefinido')
+                ->count(),
+            'practicantes' => Contrato::where('estado', 'Activo')
+                ->where('tipo_contrato', 'Practicante')
+                ->count(),
 
+            // Alertas de RRHH
             'alertasVencimiento' => Alerta::where('estado', 'Pendiente')
                 ->where('tipo', 'Vencimiento de contrato')
                 ->with('trabajador')
@@ -141,6 +116,7 @@ class DashboardController extends Controller
                 ->limit(10)
                 ->get(),
 
+            // Próximos vencimientos (30 días)
             'proximosVencimientos' => Contrato::where('estado', 'Activo')
                 ->whereBetween('fecha_fin', [now(), now()->addDays(30)])
                 ->with('trabajador')
@@ -148,27 +124,20 @@ class DashboardController extends Controller
                 ->limit(15)
                 ->get(),
 
+            // Trabajadores en lista negra
             'enListaNegra' => ListaNegra::where('estado', 'Bloqueado')
                 ->with('trabajador')
                 ->limit(10)
                 ->get(),
 
+            // Trabajadores próximos a 5 años
             'proximosEstables' => $this->obtenerProximosEstables(),
 
+            // Conteos totales
             'totalAlertas' => Alerta::where('estado', 'Pendiente')
                 ->whereIn('tipo', ['Vencimiento de contrato', 'Estabilidad laboral (5 años)'])
                 ->count(),
             'totalEnListaNegra' => ListaNegra::where('estado', 'Bloqueado')->count(),
-
-            'contratosPorTipo' => (clone $queryBase)
-                ->groupBy('tipo_contrato')
-                ->selectRaw('tipo_contrato as nombre, COUNT(*) as cantidad')
-                ->get(),
-
-            'trabajadoresPorUnidad' => Trabajador::where('estado', 'Activo')
-                ->groupBy('unidad')
-                ->selectRaw('unidad as nombre, COUNT(*) as cantidad')
-                ->get(),
         ];
 
         return view('dashboards.rrhh', $data);
@@ -179,32 +148,32 @@ class DashboardController extends Controller
      */
     private function dashboardBienestar()
     {
-        $this->sincronizarCumpleaños();
-        AlertaService::generarAlertasCumpleaños();
+        // Próximos cumpleaños (próximos 30 días)
+        $hoy = Carbon::now();
+        $fechaFin = $hoy->copy()->addDays(30);
 
-        $proximosCumpleaños = Cumpleaños::with('trabajador')
-            ->whereHas('trabajador', function ($query) {
-                $query->where('estado', 'Activo');
+        $proximosCumpleaños = Trabajador::where('estado', 'Activo')
+            ->get()
+            ->filter(function ($trabajador) use ($hoy, $fechaFin) {
+                if (!$trabajador->fecha_nacimiento) return false;
+                
+                $proximoCumpleaños = Carbon::parse($trabajador->fecha_nacimiento)
+                    ->setYear($hoy->year);
+                
+                if ($proximoCumpleaños < $hoy) {
+                    $proximoCumpleaños->addYear();
+                }
+                
+                return $proximoCumpleaños >= $hoy && $proximoCumpleaños <= $fechaFin;
             })
-            ->whereRaw("
-                (DATE_FORMAT(fecha_cumpleaños, '%m-%d') BETWEEN DATE_FORMAT(NOW(), '%m-%d') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 30 DAY), '%m-%d'))
-                OR 
-                (DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 30 DAY), '%m-%d') < DATE_FORMAT(NOW(), '%m-%d') 
-                 AND (DATE_FORMAT(fecha_cumpleaños, '%m-%d') >= DATE_FORMAT(NOW(), '%m-%d') 
-                      OR DATE_FORMAT(fecha_cumpleaños, '%m-%d') <= DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 30 DAY), '%m-%d')))
-            ")
-            ->get();
-
-        $todosCumpleaños = Cumpleaños::whereHas('trabajador', function ($query) {
-            $query->where('estado', 'Activo');
-        })->get();
+            ->values();
 
         $data = [
             'totalTrabajadores' => Trabajador::where('estado', 'Activo')->count(),
-            'proximosCumpleaños' => $proximosCumpleaños,
-            'todosCumpleaños' => $todosCumpleaños,
+            'proximosCumpleaños' => $proximosCumpleaños->take(20),
             'totalProximos' => $proximosCumpleaños->count(),
 
+            // Alertas de cumpleaños
             'alertasCumpleaños' => Alerta::where('estado', 'Pendiente')
                 ->where('tipo', 'Cumpleaños')
                 ->with('trabajador')
@@ -212,21 +181,17 @@ class DashboardController extends Controller
                 ->limit(15)
                 ->get(),
 
+            // Giftcards pendientes
             'giftcardsPendientes' => Cumpleaños::where('giftcard_entregada', false)
                 ->with('trabajador')
-                ->whereHas('trabajador', function ($query) {
-                    $query->where('estado', 'Activo');
-                })
-                ->whereRaw("DATE_FORMAT(fecha_cumpleaños, '%m-%d') < DATE_FORMAT(NOW(), '%m-%d')")
-                ->orderByRaw("DATE_FORMAT(fecha_cumpleaños, '%m-%d') ASC")
+                ->orderBy('fecha_cumpleaños')
+                ->limit(10)
                 ->get(),
 
+            // Giftcards entregadas este mes
             'giftcardsEntregadasMes' => Cumpleaños::whereMonth('fecha_entrega_giftcard', now()->month)
-                ->whereYear('fecha_entrega_giftcard', now()->year)
+    ->whereYear('fecha_entrega_giftcard', now()->year)
                 ->where('giftcard_entregada', true)
-                ->whereHas('trabajador', function ($query) {
-                    $query->where('estado', 'Activo');
-                })
                 ->count(),
 
             'totalAlertas' => Alerta::where('estado', 'Pendiente')
@@ -242,10 +207,8 @@ class DashboardController extends Controller
      */
     private function dashboardGerencia()
     {
-        AlertaService::generarAlertasVencimiento();
-        AlertaService::generarAlertasEstabilidad();
-
         $data = [
+            // Estadísticas generales
             'totalTrabajadores' => Trabajador::where('estado', 'Activo')->count(),
             'totalContratos' => Contrato::where('estado', 'Activo')->count(),
             'totalPracticantes' => Contrato::where('estado', 'Activo')
@@ -255,6 +218,7 @@ class DashboardController extends Controller
                 ->where('tipo_contrato', 'Indefinido')
                 ->count(),
 
+            // Solo alertas CRÍTICAS
             'alertasCriticas' => Alerta::where('estado', 'Pendiente')
                 ->where('prioridad', 'Crítica')
                 ->with('trabajador', 'contrato')
@@ -266,94 +230,74 @@ class DashboardController extends Controller
                 ->where('prioridad', 'Crítica')
                 ->count(),
 
+            // Trabajadores próximos a 5 años (CRÍTICO)
             'proximosEstables' => $this->obtenerProximosEstables(),
 
+            // Contrato por tipo (para gráfico)
             'contratosPorTipo' => Contrato::where('estado', 'Activo')
                 ->groupBy('tipo_contrato')
                 ->selectRaw('tipo_contrato, COUNT(*) as cantidad')
                 ->get(),
 
+            // Trabajadores por departamento
             'trabajadoresPorDepartamento' => Trabajador::where('estado', 'Activo')
-                ->groupBy('area_departamento')
-                ->selectRaw('area_departamento, COUNT(*) as cantidad')
-                ->get(),
+    ->groupBy('area_departamento')
+    ->selectRaw('area_departamento, COUNT(*) as cantidad')
+    ->get(),
         ];
 
         return view('dashboards.gerencia', $data);
     }
 
+    /**
+     * Método auxiliar: Obtener trabajadores próximos a 5 años
+     */
     private function obtenerProximosEstables()
     {
-        $adendasCriticas = Adenda::where('tiempo_acumulado_total_meses', '>=', 48)
-            ->where('tiempo_acumulado_total_meses', '<', 60)
-            ->with('trabajador', 'contrato')
-            ->get();
+        $contratos = Contrato::where('estado', 'Activo')
+            ->with('trabajador')
+            ->get()
+            ->filter(function ($contrato) {
+                $mesesAcumulados = Carbon::parse($contrato->fecha_inicio)
+                    ->diffInMonths(now());
+                
+                // Retorna contratos entre 54-60 meses (4 años 6 meses - 5 años)
+                return $mesesAcumulados >= 54 && $mesesAcumulados < 61;
+            })
+            ->map(function ($contrato) {
+                $mesesAcumulados = Carbon::parse($contrato->fecha_inicio)
+                    ->diffInMonths(now());
+                $contrato->meses_acumulados = $mesesAcumulados;
+                $contrato->meses_restantes = 60 - $mesesAcumulados;
+                return $contrato;
+            })
+            ->sortBy('meses_restantes')
+            ->values();
 
-        $trabajadoresUnicos = [];
-
-        foreach ($adendasCriticas as $adenda) {
-            if (!$adenda->trabajador)
-                continue;
-            $dni = $adenda->dni;
-
-            if (!isset($trabajadoresUnicos[$dni]) || $trabajadoresUnicos[$dni]->meses_acumulados < $adenda->tiempo_acumulado_total_meses) {
-                $mesesAcumulados = $adenda->tiempo_acumulado_total_meses;
-                $mesesRestantes = 60 - $mesesAcumulados;
-
-                $trabajadoresUnicos[$dni] = (object) [
-                    'id' => $adenda->contrato_id,
-                    'dni' => $adenda->dni,
-                    'trabajador' => $adenda->trabajador,
-                    'meses_acumulados' => $mesesAcumulados,
-                    'meses_restantes' => $mesesRestantes,
-                    'porcentaje' => round(($mesesAcumulados / 60) * 100, 2),
-                ];
-            }
-        }
-
-        $proximosEstables = array_values($trabajadoresUnicos);
-        usort($proximosEstables, function ($a, $b) {
-            return $a->meses_restantes <=> $b->meses_restantes;
-        });
-
-        return $proximosEstables;
+        return $contratos;
     }
 
-    private function sincronizarCumpleaños()
-    {
-        $trabajadores = Trabajador::whereNotNull('fecha_nacimiento')->get();
-
-        foreach ($trabajadores as $trabajador) {
-            $cumpleaños = Cumpleaños::where('dni', $trabajador->dni)->first();
-
-            if (!$cumpleaños) {
-                Cumpleaños::create([
-                    'dni' => $trabajador->dni,
-                    'fecha_cumpleaños' => $trabajador->fecha_nacimiento,
-                    'giftcard_entregada' => false,
-                ]);
-            } else {
-                if ($cumpleaños->fecha_cumpleaños !== $trabajador->fecha_nacimiento) {
-                    $cumpleaños->update(['fecha_cumpleaños' => $trabajador->fecha_nacimiento]);
-                }
-            }
-        }
-    }
-
+    /**
+     * Obtener estadísticas en JSON (para AJAX/Charts)
+     * GET /api/dashboard/estadisticas
+     */
     public function estadisticas()
     {
         $user = Auth::user();
+
         if ($user->hasRole('RRHH')) {
             $data = [
                 'contratosPorTipo' => Contrato::where('estado', 'Activo')
                     ->groupBy('tipo_contrato')
                     ->selectRaw('tipo_contrato as nombre, COUNT(*) as cantidad')
                     ->get(),
+
                 'alertasPorTipo' => Alerta::where('estado', 'Pendiente')
                     ->whereIn('tipo', ['Vencimiento de contrato', 'Estabilidad laboral (5 años)'])
                     ->groupBy('tipo')
                     ->selectRaw('tipo as nombre, COUNT(*) as cantidad')
                     ->get(),
+
                 'alertasPorPrioridad' => Alerta::where('estado', 'Pendiente')
                     ->groupBy('prioridad')
                     ->selectRaw('prioridad as nombre, COUNT(*) as cantidad')
@@ -365,9 +309,10 @@ class DashboardController extends Controller
                     ->groupBy('tipo_contrato')
                     ->selectRaw('tipo_contrato as nombre, COUNT(*) as cantidad')
                     ->get(),
+
                 'trabajadoresPorDepartamento' => Trabajador::where('estado', 'Activo')
-                    ->groupBy('area_departamento')
-                    ->selectRaw('area_departamento, COUNT(*) as cantidad')
+    ->groupBy('area_departamento')
+    ->selectRaw('area_departamento, COUNT(*) as cantidad')
                     ->get(),
             ];
         } else {

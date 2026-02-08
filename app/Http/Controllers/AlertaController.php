@@ -5,8 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Alerta;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-
-
+use App\Services\AlertaService;
 
 class AlertaController extends Controller
 {
@@ -38,6 +37,13 @@ class AlertaController extends Controller
         }
         // Admin ve todo
 
+        // Base query for stats (only filtered by role, not by state/priority)
+        $statsQuery = clone $query;
+        $totalCriticas = (clone $statsQuery)->where('prioridad', 'Crítica')->count();
+        $totalAltas = (clone $statsQuery)->where('prioridad', 'Alta')->count();
+        $totalPendientes = (clone $statsQuery)->where('estado', 'Pendiente')->count();
+        $totalResueltas = (clone $statsQuery)->where('estado', 'Resuelta')->count();
+
         // Filtro por estado
         if ($request->has('estado') && $request->estado != '') {
             $query->where('estado', $request->estado);
@@ -56,7 +62,13 @@ class AlertaController extends Controller
             ->orderBy('fecha_alerta', 'desc')
             ->paginate(20);
 
-        return view('alertas.index', compact('alertas'));
+        return view('alertas.index', compact(
+            'alertas',
+            'totalCriticas',
+            'totalAltas',
+            'totalPendientes',
+            'totalResueltas'
+        ));
     }
 
     /**
@@ -107,9 +119,9 @@ class AlertaController extends Controller
      */
     public function generar(Request $request)
     {
-        // Solo Admin y RRHH pueden ejecutar esto
-        if (!Auth::user()->hasRole('Admin') && !Auth::user()->hasRole('RRHH')) {
-            abort(403, 'Solo administradores y RRHH pueden generar alertas manualmente');
+        // Solo Admin puede ejecutar esto
+        if (!Auth::user()->hasRole('Admin')) {
+            abort(403, 'Solo administradores pueden generar alertas manualmente');
         }
 
         $tipo = $request->input('tipo'); // vencimiento, cumpleaños, estabilidad
@@ -117,24 +129,24 @@ class AlertaController extends Controller
         try {
             switch ($tipo) {
                 case 'vencimiento':
-                    \Illuminate\Support\Facades\Artisan::call('alertas:vencimiento');
+                    AlertaService::generarAlertasVencimiento();
                     $mensaje = 'Alertas de vencimiento generadas correctamente';
                     break;
 
                 case 'cumpleaños':
-                    \Illuminate\Support\Facades\Artisan::call('alertas:cumpleanos');
+                    AlertaService::generarAlertasCumpleaños();
                     $mensaje = 'Alertas de cumpleaños generadas correctamente';
                     break;
 
                 case 'estabilidad':
-                    \Illuminate\Support\Facades\Artisan::call('alertas:estabilidad');
+                    AlertaService::generarAlertasEstabilidad();
                     $mensaje = 'Alertas de estabilidad generadas correctamente';
                     break;
 
                 default:
-                    \Illuminate\Support\Facades\Artisan::call('alertas:vencimiento');
-                    \Illuminate\Support\Facades\Artisan::call('alertas:cumpleanos');
-                    \Illuminate\Support\Facades\Artisan::call('alertas:estabilidad');
+                    AlertaService::generarAlertasVencimiento();
+                    AlertaService::generarAlertasCumpleaños();
+                    AlertaService::generarAlertasEstabilidad();
                     $mensaje = 'Todas las alertas generadas correctamente';
             }
 

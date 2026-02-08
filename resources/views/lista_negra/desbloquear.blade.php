@@ -1,227 +1,233 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container mx-auto px-4 py-8">
-    <!-- Encabezado -->
-    <div class="mb-6">
-        <a href="{{ route('lista-negra.show', $listaNegra->id) }}" class="text-blue-600 hover:text-blue-800 text-sm font-semibold">← Volver a Detalles</a>
-        <h1 class="text-3xl font-bold text-gray-800 mt-3">🔓 Desbloquear Trabajador de Lista Negra</h1>
-        <p class="text-gray-600 mt-1">Autorizar nuevamente la contratación de este trabajador</p>
-    </div>
-
-    <!-- Mensajes de alerta -->
-    @if ($message = Session::get('error'))
-    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-        {{ $message }}
-    </div>
-    @endif
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Formulario Principal -->
-        <div class="lg:col-span-2">
-            <!-- Información del Trabajador Bloqueado -->
-            <div class="bg-yellow-50 border-2 border-yellow-300 rounded-lg shadow p-6 mb-6">
-                <h2 class="text-xl font-bold text-yellow-800 mb-4">⚠️ Trabajador en Bloqueo LEVE</h2>
-                
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-gray-600 text-xs font-semibold uppercase">DNI</p>
-                        <p class="text-gray-900 text-lg font-bold">{{ $listaNegra->dni }}</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-600 text-xs font-semibold uppercase">Nombre</p>
-                        <p class="text-gray-900 text-lg font-bold">{{ $listaNegra->trabajador->nombre_completo ?? 'N/A' }}</p>
-                    </div>
-                    <div class="col-span-2">
-                        <p class="text-gray-600 text-xs font-semibold uppercase mb-1">Motivo del Bloqueo</p>
-                        <div class="bg-red-50 border-l-4 border-red-600 p-3 rounded">
-                            <p class="text-gray-800 text-sm">{{ $listaNegra->motivo }}</p>
-                        </div>
-                    </div>
-                    <div class="col-span-2">
-                        <p class="text-gray-600 text-xs font-semibold uppercase mb-1">Bloqueado hace</p>
-                        <p class="text-gray-900 font-bold">{{ $listaNegra->fecha_bloqueo->diffForHumans() }}</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Formulario de Desbloqueo -->
-            <form action="{{ route('lista-negra.desbloquear', $listaNegra->id) }}" method="POST" enctype="multipart/form-data" class="bg-white rounded-lg shadow p-6">
-                @csrf
-
-                <!-- Motivo del Desbloqueo -->
-                <div class="mb-6">
-                    <label for="motivo_desbloqueo" class="block text-sm font-bold text-gray-700 mb-2">
-                        Motivo del Desbloqueo <span class="text-red-600">*</span>
-                    </label>
-                    <p class="text-sm text-gray-600 mb-3">Explica por qué se autoriza el desbloqueo de este trabajador</p>
-                    <textarea name="motivo_desbloqueo" id="motivo_desbloqueo" rows="4" 
-                        placeholder="Ejemplo: Trabajador presentó carta de compromiso y ha demostrado enmienda de conducta..." 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 @error('motivo_desbloqueo') border-red-500 @enderror"
-                        required>{{ old('motivo_desbloqueo') }}</textarea>
-                    <div class="flex justify-between items-center mt-1">
-                        <p class="text-gray-500 text-sm">Máximo 500 caracteres</p>
-                        <p class="text-gray-500 text-sm"><span id="charCount">0</span>/500</p>
-                    </div>
-                    @error('motivo_desbloqueo')
-                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
-                    @enderror
-                </div>
-
-                <!-- Carta de Compromiso -->
-                <div class="mb-6">
-                    <label for="documento_carta" class="block text-sm font-bold text-gray-700 mb-2">
-                        Carta de Compromiso Firmada <span class="text-red-600">*</span>
-                    </label>
-                    <p class="text-sm text-gray-600 mb-3">Sube la carta de compromiso firmada por el trabajador (PDF, JPG, PNG)</p>
-                    
-                    <div class="border-2 border-dashed border-green-300 rounded-lg p-8 text-center cursor-pointer hover:border-green-400 hover:bg-green-50 transition"
-                        id="drop-zone">
-                        <input type="file" name="documento_carta" id="documento_carta" 
-                            accept=".pdf,.jpg,.jpeg,.png" 
-                            class="hidden"
-                            required>
-                        
-                        <svg class="mx-auto h-12 w-12 text-green-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                            <path d="M28 8H12a4 4 0 00-4 4v20a4 4 0 004 4h24a4 4 0 004-4V20m-8-12l-8 8m0 0l-8-8m8 8v20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    <div class="py-12">
+        <div class="max-w-4xl mx-auto sm:px-6 lg:px-8">
+            <!-- Header -->
+            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6 border-l-4 border-green-600">
+                <div class="p-6 flex items-center">
+                    <div class="p-3 rounded-full bg-green-50 mr-4">
+                        <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z">
+                            </path>
                         </svg>
-                        
-                        <p class="mt-3 font-semibold text-gray-700">Haz clic para cargar o arrastra un archivo aquí</p>
-                        <p class="text-sm text-gray-500 mt-1">PDF, JPG, PNG (máximo 5MB)</p>
-                        <p class="text-sm text-gray-400 mt-3 font-mono" id="file-name"></p>
                     </div>
-                    @error('documento_carta')
-                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
-                    @enderror
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-800">Rehabilitar Trabajador</h1>
+                        <p class="text-gray-600 text-sm mt-1">Autorizar el levantamiento del bloqueo para permitir nuevas
+                            contrataciones</p>
+                    </div>
                 </div>
-
-                <!-- Información de Alerta -->
-                <div class="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-6">
-                    <p class="text-sm font-bold text-green-800 mb-2">✅ Importante</p>
-                    <ul class="text-sm text-green-700 space-y-1">
-                        <li>✓ El trabajador será desbloqueado inmediatamente</li>
-                        <li>✓ Podrá crear nuevos contratos</li>
-                        <li>✓ Se guardará un registro de este desbloqueo</li>
-                        <li>✓ Si reincide, será bloqueado nuevamente (esta vez como GRAVE)</li>
-                    </ul>
-                </div>
-
-                <!-- Botones -->
-                <div class="flex gap-4 pt-4 border-t border-gray-200">
-                    <button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition">
-                        ✅ Confirmar Desbloqueo
-                    </button>
-                    <a href="{{ route('lista-negra.show', $listaNegra->id) }}" class="flex-1 bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg text-center transition">
-                        ❌ Cancelar
-                    </a>
-                </div>
-            </form>
-        </div>
-
-        <!-- Sidebar Informativo -->
-        <div class="lg:col-span-1">
-            <!-- Información de la Carta de Compromiso -->
-            <div class="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-6">
-                <p class="text-sm font-bold text-blue-800 mb-3">📋 Qué es una Carta de Compromiso</p>
-                <p class="text-xs text-blue-700 leading-relaxed mb-3">
-                    Es un documento firmado por el trabajador donde se compromete a:
-                </p>
-                <ul class="text-xs text-blue-700 space-y-1 ml-2">
-                    <li>✓ Cumplir con las normas de la empresa</li>
-                    <li>✓ Mantener buen comportamiento</li>
-                    <li>✓ Enmendar la conducta que causó el bloqueo</li>
-                    <li>✓ Aceptar las consecuencias si reincide</li>
-                </ul>
             </div>
 
-            <!-- Condiciones del Desbloqueo -->
-            <div class="bg-purple-50 border-2 border-purple-200 rounded-lg p-4 mb-6">
-                <p class="text-sm font-bold text-purple-800 mb-3">⚡ Condiciones</p>
-                <ul class="text-xs text-purple-700 space-y-2">
-                    <li>
-                        <strong>Tipo:</strong><br/>
-                        <span class="inline-block bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-semibold mt-1">🟡 LEVE</span>
-                    </li>
-                    <li class="mt-2">
-                        <strong>Requiere:</strong><br/>
-                        • Motivo de desbloqueo<br/>
-                        • Carta de compromiso
-                    </li>
-                    <li class="mt-2">
-                        <strong>Después:</strong><br/>
-                        El trabajador podrá contratar nuevamente
-                    </li>
-                </ul>
-            </div>
+            <div class="bg-white overflow-hidden shadow-lg sm:rounded-lg">
+                <div class="p-8">
+                    <form action="{{ route('lista-negra.desbloquear', $listaNegra->id) }}" method="POST"
+                        enctype="multipart/form-data" id="desbloquearForm">
+                        @csrf
 
-            <!-- Advertencia -->
-            <div class="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-                <p class="text-sm font-bold text-red-800 mb-2">⚠️ Advertencia</p>
-                <p class="text-xs text-red-700 leading-relaxed">
-                    Si este trabajador reincide en la falta, será bloqueado nuevamente pero esta vez como <strong>GRAVE</strong> (bloqueo permanente, sin posibilidad de desbloqueo).
-                </p>
+                        <!-- Errores de Validación -->
+                        @if ($errors->any())
+                            <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded shadow-sm">
+                                <div class="flex">
+                                    <div class="flex-shrink-0">
+                                        <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
+                                            fill="currentColor">
+                                            <path fill-rule="evenodd"
+                                                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                                                clip-rule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div class="ml-3">
+                                        <h3 class="text-sm font-medium text-red-800">Se encontraron errores de validación</h3>
+                                        <ul class="mt-2 list-disc list-inside text-sm text-red-700">
+                                            @foreach ($errors->all() as $error)
+                                                <li>{{ $error }}</li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+                        <!-- SECCIÓN 1: Antecedentes -->
+                        <div class="mb-10 pb-8 border-b border-gray-100">
+                            <div class="flex items-center mb-6">
+                                <div
+                                    class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 mr-3">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                                        </path>
+                                    </svg>
+                                </div>
+                                <h2 class="text-xl font-bold text-gray-800">Detalles del Bloqueo Actual</h2>
+                            </div>
+
+                            <div class="bg-gray-50 border-l-4 border-amber-500 p-5 rounded-md shadow-inner">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div>
+                                        <p
+                                            class="text-xs font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">
+                                            Nombre del Trabajador</p>
+                                        <p class="text-lg font-bold text-gray-800">
+                                            {{ $listaNegra->trabajador->nombre_completo ?? 'N/A' }}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p
+                                            class="text-xs font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">
+                                            DNI</p>
+                                        <p class="text-lg font-bold text-gray-800">{{ $listaNegra->dni }}</p>
+                                    </div>
+                                </div>
+                                <div class="border-t border-gray-200 pt-4 mt-2">
+                                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest leading-none mb-2">
+                                        Motivo de Bloqueo:</p>
+                                    <p class="text-gray-700 italic">"{{ $listaNegra->descripcion_motivo }}"</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECCIÓN 2: Justificación -->
+                        <div class="mb-10 pb-8 border-b border-gray-100">
+                            <div class="flex items-center mb-6">
+                                <div
+                                    class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 mr-3">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                                        </path>
+                                    </svg>
+                                </div>
+                                <h2 class="text-xl font-bold text-gray-800">Sustento de Rehabilitación</h2>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Motivo del Desbloqueo *</label>
+                                <textarea name="motivo_desbloqueo" id="motivo_desbloqueo" rows="4"
+                                    class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-600 focus:ring-green-600 sm:text-sm transition-all"
+                                    placeholder="Describa los acuerdos, compromisos o justificación para levantar el bloqueo..."
+                                    required>{{ old('motivo_desbloqueo') }}</textarea>
+                                <div class="mt-1 text-right">
+                                    <span class="text-xs font-mono text-gray-400"><span id="charCount">0</span>/500</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECCIÓN 3: Archivo Adjunto -->
+                        <div class="mb-10 pb-8 border-b border-gray-100">
+                            <div class="flex items-center mb-6">
+                                <div
+                                    class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 mr-3">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13">
+                                        </path>
+                                    </svg>
+                                </div>
+                                <h2 class="text-xl font-bold text-gray-800">Carta de Compromiso</h2>
+                            </div>
+
+                            <div class="bg-gray-50 p-6 rounded-lg border-2 border-dashed border-gray-300 hover:border-green-600 transition-colors"
+                                id="drop-zone">
+                                <div class="flex flex-col items-center">
+                                    <svg class="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                    <p class="text-sm text-gray-600 font-medium">Arrastra el archivo aquí o haz clic para
+                                        subir</p>
+                                    <p class="text-xs text-gray-500 mt-1">PDF, JPG o PNG (Máx. 5MB)</p>
+                                    <input type="file" name="documento_carta" id="documento_carta" class="hidden"
+                                        accept=".pdf,.jpg,.jpeg,.png" required>
+                                    <div id="file-name-display"
+                                        class="mt-4 text-xs font-bold text-green-600 bg-white px-3 py-1 rounded-full border border-green-100 hidden truncate max-w-xs">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botones -->
+                        <div class="flex gap-4 justify-end pt-4">
+                            <a href="{{ route('lista-negra.show', $listaNegra->id) }}"
+                                class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                                <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                                Cancelar
+                            </a>
+                            <button type="submit"
+                                class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 transition-all hover:shadow-lg transform hover:-translate-y-0.5">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                Confirmar Rehabilitación
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<script>
-// Contador de caracteres
-const motivoTextarea = document.getElementById('motivo_desbloqueo');
-const charCountSpan = document.getElementById('charCount');
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const textarea = document.getElementById('motivo_desbloqueo');
+            const charCount = document.getElementById('charCount');
+            const fileInput = document.getElementById('documento_carta');
+            const dropZone = document.getElementById('drop-zone');
+            const fileNameDisplay = document.getElementById('file-name-display');
 
-motivoTextarea.addEventListener('input', function() {
-    charCountSpan.textContent = this.value.length;
-    if (this.value.length >= 500) {
-        this.value = this.value.substring(0, 500);
-    }
-});
+            // Contador
+            textarea.addEventListener('input', () => {
+                charCount.textContent = textarea.value.length;
+                if (textarea.value.length > 500) textarea.value = textarea.value.substring(0, 500);
+            });
 
-// Drag and drop para archivo
-const dropZone = document.getElementById('drop-zone');
-const fileInput = document.getElementById('documento_carta');
-const fileName = document.getElementById('file-name');
+            // Drop Zone
+            dropZone.addEventListener('click', () => fileInput.click());
 
-['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-    dropZone.addEventListener(eventName, preventDefaults, false);
-});
+            fileInput.addEventListener('change', () => {
+                if (fileInput.files.length) {
+                    fileNameDisplay.textContent = '✅ ' + fileInput.files[0].name;
+                    fileNameDisplay.classList.remove('hidden');
+                }
+            });
 
-function preventDefaults(e) {
-    e.preventDefault();
-    e.stopPropagation();
-}
+            ['dragenter', 'dragover'].forEach(name => dropZone.addEventListener(name, (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-green-600', 'bg-green-50');
+            }));
 
-['dragenter', 'dragover'].forEach(eventName => {
-    dropZone.addEventListener(eventName, () => {
-        dropZone.classList.add('border-green-400', 'bg-green-50');
-    });
-});
+            ['dragleave', 'drop'].forEach(name => dropZone.addEventListener(name, (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-green-600', 'bg-green-50');
+                if (name === 'drop') {
+                    fileInput.files = e.dataTransfer.files;
+                    fileInput.dispatchEvent(new Event('change'));
+                }
+            }));
+        });
+    </script>
 
-['dragleave', 'drop'].forEach(eventName => {
-    dropZone.addEventListener(eventName, () => {
-        dropZone.classList.remove('border-green-400', 'bg-green-50');
-    });
-});
+    <style>
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
 
-dropZone.addEventListener('drop', (e) => {
-    const dt = e.dataTransfer;
-    const files = dt.files;
-    fileInput.files = files;
-    updateFileName();
-});
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
 
-dropZone.addEventListener('click', () => fileInput.click());
-
-fileInput.addEventListener('change', updateFileName);
-
-function updateFileName() {
-    if (fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        const sizeMB = (file.size / 1024 / 1024).toFixed(2);
-        fileName.textContent = `✅ ${file.name} (${sizeMB} MB)`;
-    } else {
-        fileName.textContent = '';
-    }
-}
-</script>
+            to {
+                opacity: 1;
+            }
+        }
+    </style>
 @endsection

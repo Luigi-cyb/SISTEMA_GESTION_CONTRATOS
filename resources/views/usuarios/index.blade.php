@@ -7,9 +7,16 @@
         <div class="bg-white shadow-sm sm:rounded-lg mb-6">
             <div class="p-6">
                 <div class="flex justify-between items-center">
-                    <div>
-                        <h1 class="text-2xl font-semibold text-gray-900">Gestión de Usuarios</h1>
-                        <p class="text-sm text-gray-600 mt-1">Total de registros: <span class="font-medium">{{ $usuarios->total() }}</span></p>
+                    <div class="flex items-center">
+                        <div style="background: #eef2ff; color: #4f46e5; padding: 12px; border-radius: 16px; margin-right: 20px; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.1);">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
+                            <p class="text-sm font-semibold text-gray-500 mt-1">Total de registros: <span class="text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 ml-1">{{ $usuarios->total() }}</span></p>
+                        </div>
                     </div>
                     @can('create.usuarios')
                     <a href="{{ route('usuarios.create') }}" 

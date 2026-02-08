@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Acceso | EMICONSATH</title>
+    <title>SGC - Emiconsath</title>
+    <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
 
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:300,400,500,600,700&display=swap" rel="stylesheet" />
@@ -17,7 +19,7 @@
             box-sizing: border-box;
         }
 
-        body { 
+        body {
             font-family: 'Inter', sans-serif;
             position: relative;
         }
@@ -68,6 +70,7 @@
                 opacity: 0;
                 transform: translateY(30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -326,9 +329,19 @@
 
         /* Animación de error */
         @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            75% { transform: translateX(5px); }
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-5px);
+            }
+
+            75% {
+                transform: translateX(5px);
+            }
         }
 
         .shake {
@@ -336,6 +349,7 @@
         }
     </style>
 </head>
+
 <body class="antialiased">
 
     <div class="bg-image"></div>
@@ -343,7 +357,7 @@
 
     <div class="login-container">
         <div class="login-panel">
-            
+
             <!-- Header -->
             <div class="login-header">
                 <div class="logo">
@@ -368,16 +382,8 @@
 
                 <!-- Email -->
                 <div class="form-group">
-                    <input 
-                        id="email" 
-                        type="email" 
-                        name="email" 
-                        value="{{ old('email') }}" 
-                        required 
-                        autofocus
-                        class="form-input @error('email') shake error @enderror"
-                        placeholder="Correo electrónico"
-                    >
+                    <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus
+                        class="form-input @error('email') shake error @enderror" placeholder="Correo electrónico">
                     @error('email')
                         <span class="error-text">{{ $message }}</span>
                     @enderror
@@ -386,24 +392,17 @@
                 <!-- Password -->
                 <div class="form-group">
                     <div class="password-wrapper">
-                        <input 
-                            id="password" 
-                            type="password" 
-                            name="password" 
-                            required
-                            class="form-input @error('password') error @enderror"
-                            placeholder="Contraseña"
-                        >
-                        <button 
-                            type="button" 
-                            class="toggle-password" 
-                            id="togglePassword"
-                            onclick="togglePasswordVisibility()"
-                            title="Mostrar/Ocultar contraseña"
-                        >
-                            <svg id="passwordIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                        <input id="password" type="password" name="password" required
+                            class="form-input @error('password') error @enderror" placeholder="Contraseña">
+                        <button type="button" class="toggle-password" id="togglePassword"
+                            onclick="togglePasswordVisibility()" title="Mostrar/Ocultar contraseña">
+                            <svg id="passwordIcon" class="w-5 h-5" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z">
+                                </path>
                             </svg>
                         </button>
                     </div>
@@ -443,8 +442,7 @@
         function togglePasswordVisibility() {
             const passwordInput = document.getElementById('password');
             const passwordIcon = document.getElementById('passwordIcon');
-            
-            if (passwordInput.type === 'password') {
+ if (passwordInput.type === 'password') {
                 passwordInput.type = 'text';
                 // SVG de ocultar (ojo tachado)
                 passwordIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-2.803m5.596-3.856a3.375 3.375 0 11-4.753 4.753M4.6 4.6l14.8 14.8"></path>';
@@ -456,4 +454,5 @@
         }
     </script>
 </body>
+
 </html>

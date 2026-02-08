@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ReportesExport;
+use Carbon\Carbon;
 
 class ReporteController extends Controller
 {
@@ -27,7 +28,10 @@ class ReporteController extends Controller
     public function contratosActivos(Request $request)
     {
         $query = Contrato::with(['trabajador', 'adendas'])
-            ->where('estado', 'Activo');
+            ->where(function ($q) {
+                $q->where('estado', 'Activo')
+                    ->orWhereHas('adendas');
+            });
 
         // Filtros opcionales
         if ($request->filled('departamento')) {
@@ -47,6 +51,14 @@ class ReporteController extends Controller
         }
 
         $contratos = $query->get()->map(function ($contrato) {
+            // Obtener fecha fin real (considerando adendas)
+            $ultimaAdenda = $contrato->adendas
+                ->where('estado', '!=', 'Cancelada')
+                ->sortByDesc('numero_adenda')
+                ->first();
+
+            $fechaFinReal = $ultimaAdenda ? $ultimaAdenda->fecha_fin : $contrato->fecha_fin;
+
             return [
                 'dni' => $contrato->trabajador->dni,
                 'nombre_completo' => $contrato->trabajador->nombre_completo,
@@ -55,13 +67,28 @@ class ReporteController extends Controller
                 'unidad' => $contrato->trabajador->unidad,
                 'tipo_contrato' => $contrato->tipo_contrato,
                 'fecha_inicio' => $contrato->fecha_inicio,
-                'fecha_fin' => $contrato->fecha_fin,
-                'meses_acumulados' => $contrato->calcularMesesAcumulados(),
-                'años_meses' => $this->formatearTiempo($contrato->calcularMesesAcumulados()),
+                'fecha_fin' => $fechaFinReal,
+                'meses_acumulados' => round($contrato->calcularMesesAcumulados()),
+                'años_meses' => $contrato->calcularTiempoExacto(),
                 'estado' => $contrato->estado,
                 'indicador_estabilidad' => $contrato->obtenerIndicadorEstabilidad()
             ];
         });
+
+        // Obtener listas para filtros dinámicos
+        $departamentos = Trabajador::whereNotNull('area_departamento')
+            ->distinct()
+            ->orderBy('area_departamento')
+            ->pluck('area_departamento');
+
+        $unidades = Trabajador::whereNotNull('unidad')
+            ->distinct()
+            ->orderBy('unidad')
+            ->pluck('unidad');
+
+        $tiposContrato = Contrato::distinct()
+            ->orderBy('tipo_contrato')
+            ->pluck('tipo_contrato');
 
         // Exportar según formato solicitado
         if ($request->formato === 'excel') {
@@ -72,7 +99,7 @@ class ReporteController extends Controller
             return $this->exportarPDF($contratos, 'Contratos Activos', 'reportes.pdf.contratos_activos');
         }
 
-        return view('reportes.contratos_activos', compact('contratos'));
+        return view('reportes.contratos_activos', compact('contratos', 'departamentos', 'unidades', 'tiposContrato'));
     }
 
     /**
@@ -80,28 +107,48 @@ class ReporteController extends Controller
      */
     public function proximosVencer(Request $request)
     {
-        $dias = $request->dias ?? 30; // Por defecto 30 días
+        $diasFiltro = $request->dias ?? 30; // Por defecto 30 días
 
         $contratos = Contrato::with(['trabajador', 'adendas'])
-            ->where('estado', 'Activo')
-            ->whereRaw('DATEDIFF(fecha_fin, CURDATE()) <= ?', [$dias])
-            ->whereRaw('DATEDIFF(fecha_fin, CURDATE()) >= 0')
-            ->orderBy('fecha_fin', 'asc')
+            ->where(function ($q) {
+                $q->where('estado', 'Activo')
+                    ->orWhereHas('adendas');
+            })
             ->get()
             ->map(function ($contrato) {
+                // Obtener la fecha de fin real (considerando adendas)
+                $ultimaAdenda = $contrato->adendas
+                    ->where('estado', '!=', 'Cancelada')
+                    ->sortByDesc('numero_adenda')
+                    ->first();
+
+                $fechaFinReal = $ultimaAdenda ? Carbon::parse($ultimaAdenda->fecha_fin) : Carbon::parse($contrato->fecha_fin);
+                // Usar startOfDay para comparar días calendarios exactos
+                $diasRestantes = (int) now()->startOfDay()->diffInDays($fechaFinReal->startOfDay(), false);
+                $mesesAcumulados = $contrato->calcularMesesAcumulados();
+
                 return [
                     'dni' => $contrato->trabajador->dni,
                     'nombre_completo' => $contrato->trabajador->nombre_completo,
                     'cargo' => $contrato->trabajador->cargo,
-                    'departamento' => $contrato->trabajador->departamento,
+                    'departamento' => $contrato->trabajador->area_departamento,
                     'unidad' => $contrato->trabajador->unidad,
                     'tipo_contrato' => $contrato->tipo_contrato,
                     'fecha_inicio' => $contrato->fecha_inicio,
-                    'fecha_fin' => $contrato->fecha_fin,
-                    'dias_restantes' => (int) round(now()->startOfDay()->diffInDays(\Carbon\Carbon::parse($contrato->fecha_fin)->startOfDay(), false)),
-                    'meses_acumulados' => (int) round($contrato->calcularMesesAcumulados()),
+                    'fecha_fin' => $fechaFinReal->toDateString(),
+                    'dias_restantes' => $diasRestantes,
+                    'meses_acumulados' => round($mesesAcumulados),
+                    'tiempo_formateado' => $contrato->calcularTiempoExacto()
                 ];
-            });
+            })
+            ->filter(function ($item) use ($diasFiltro) {
+                // Filtrar por el rango de días solicitado y que no hayan vencido ya
+                return $item['dias_restantes'] <= $diasFiltro && $item['dias_restantes'] >= 0;
+            })
+            ->sortBy('dias_restantes')
+            ->values();
+
+        $dias = $diasFiltro;
 
         if ($request->formato === 'excel') {
             return $this->exportarExcel($contratos, 'Proximos_a_Vencer');
@@ -119,20 +166,33 @@ class ReporteController extends Controller
      */
     public function porDepartamento(Request $request)
     {
-        $departamento = $request->departamento;
+        $departamentoFiltro = $request->departamento;
 
-        $query = Trabajador::with([
-            'contratos' => function ($q) {
-                $q->where('estado', 'Activo');
-            }
-        ]);
+        // Solo trabajadores que su estado sea Activo
+        $query = Trabajador::where('estado', 'Activo')
+            ->with([
+                'contratos' => function ($q) {
+                    $q->orderBy('fecha_fin', 'desc');
+                },
+                'adendas'
+            ]);
 
-        if ($departamento) {
-            $query->where('area_departamento', $departamento);
+        if ($departamentoFiltro) {
+            $query->where('area_departamento', $departamentoFiltro);
         }
 
         $trabajadores = $query->get()->map(function ($trabajador) {
             $contratoActivo = $trabajador->contratos->first();
+
+            // Buscar fecha fin real considerando adendas
+            $ultimaAdenda = $trabajador->adendas
+                ->where('estado', '!=', 'Cancelada')
+                ->sortByDesc('numero_adenda')
+                ->first();
+
+            $fechaFinReal = $ultimaAdenda ? $ultimaAdenda->fecha_fin : ($contratoActivo ? $contratoActivo->fecha_fin : 'N/A');
+            $meses = $contratoActivo ? $contratoActivo->calcularMesesAcumulados() : 0;
+
             return [
                 'dni' => $trabajador->dni,
                 'nombre_completo' => $trabajador->nombre_completo,
@@ -140,27 +200,36 @@ class ReporteController extends Controller
                 'departamento' => $trabajador->area_departamento,
                 'unidad' => $trabajador->unidad,
                 'tipo_contrato' => $contratoActivo->tipo_contrato ?? 'N/A',
-                'fecha_inicio' => $contratoActivo->fecha_inicio ?? 'N/A',
-                'fecha_fin' => $contratoActivo->fecha_fin ?? 'N/A',
-                'meses_acumulados' => $contratoActivo ? $contratoActivo->calcularMesesAcumulados() : 0,
-                'estado' => $contratoActivo->estado ?? 'INACTIVO',
+                'fecha_inicio' => $contratoActivo ? $contratoActivo->fecha_inicio : 'N/A',
+                'fecha_fin' => $fechaFinReal,
+                'meses_acumulados' => round($meses),
+                'tiempo_formateado' => $contratoActivo ? $contratoActivo->calcularTiempoExacto() : '0 meses',
+                'estado' => $contratoActivo ? $contratoActivo->estado : 'Inactivo',
+                'indicador_estabilidad' => $contratoActivo ? $contratoActivo->obtenerIndicadorEstabilidad() : 'VERDE',
             ];
         });
 
-        // Estadísticas por departamento
-        $estadisticas = Trabajador::select('area_departamento as departamento', DB::raw('count(*) as total'))
+        // Estadísticas por departamento (solo de activos)
+        $estadisticas = Trabajador::where('estado', 'Activo')
+            ->select('area_departamento as departamento', DB::raw('count(*) as total'))
             ->groupBy('area_departamento')
             ->get();
 
+        // Lista de departamentos para el filtro
+        $departamentos = Trabajador::whereNotNull('area_departamento')
+            ->distinct()
+            ->orderBy('area_departamento')
+            ->pluck('area_departamento');
+
         if ($request->formato === 'excel') {
-            return $this->exportarExcel($trabajadores, 'Por_Departamento');
+            return $this->exportarExcel($trabajadores, 'Trabajadores_por_Departamento');
         }
 
         if ($request->formato === 'pdf') {
-            return $this->exportarPDF($trabajadores, 'Reporte por Departamento', 'reportes.pdf.por_departamento');
+            return $this->exportarPDF($trabajadores, 'Reporte de Personal por Departamento', 'reportes.pdf.por_departamento');
         }
 
-        return view('reportes.por_departamento', compact('trabajadores', 'estadisticas', 'departamento'));
+        return view('reportes.por_departamento', compact('trabajadores', 'estadisticas', 'departamentos', 'departamentoFiltro'));
     }
 
     /**
@@ -168,16 +237,14 @@ class ReporteController extends Controller
      */
     public function tiempoAcumulado(Request $request)
     {
-        $trabajadores = Trabajador::with(['contratos', 'adendas'])
+        $trabajadores = Trabajador::where('estado', 'Activo')
+            ->with(['contratos', 'adendas'])
             ->get()
             ->map(function ($trabajador) {
-                // Obtener el contrato más reciente (o el activo si existe)
-                // Priorizamos Activo, si no hay, el último por fecha
-                $contratoActivo = $trabajador->contratos->where('estado', 'Activo')->first();
-
-                if (!$contratoActivo) {
-                    $contratoActivo = $trabajador->contratos->sortByDesc('fecha_inicio')->first();
-                }
+                // Obtener el contrato más reciente para calcular el tiempo acumulado
+                $contratoActivo = $trabajador->contratos()
+                    ->orderBy('fecha_fin', 'desc')
+                    ->first();
 
                 $mesesAcumulados = $contratoActivo ? $contratoActivo->calcularMesesAcumulados() : 0;
 
@@ -189,13 +256,15 @@ class ReporteController extends Controller
                     'unidad' => $trabajador->unidad,
                     'total_contratos' => $trabajador->contratos->count(),
                     'total_adendas' => $trabajador->adendas->count(),
-                    'meses_acumulados' => $mesesAcumulados,
-                    'años_meses' => $this->formatearTiempo($mesesAcumulados),
+                    'fecha_inicio' => $contratoActivo ? $contratoActivo->fecha_inicio : 'N/A',
+                    'meses_acumulados' => round($mesesAcumulados),
+                    'años_meses' => $contratoActivo ? $contratoActivo->calcularTiempoExacto() : '0 meses',
                     'indicador_estabilidad' => $contratoActivo ? $contratoActivo->obtenerIndicadorEstabilidad() : 'VERDE',
-                    'estado' => $contratoActivo->estado ?? 'INACTIVO',
+                    'estado' => $contratoActivo->estado ?? 'Activo',
                 ];
             })
-            ->sortByDesc('meses_acumulados');
+            ->sortByDesc('meses_acumulados')
+            ->values();
 
         if ($request->formato === 'excel') {
             return $this->exportarExcel($trabajadores, 'Tiempo_Acumulado');
@@ -214,7 +283,10 @@ class ReporteController extends Controller
     public function proximosEstables(Request $request)
     {
         $trabajadores = Contrato::with(['trabajador', 'adendas'])
-            ->whereIn('estado', ['Activo', 'Vencido', 'Firmado', 'Enviado a firmar'])
+            ->where(function ($q) {
+                $q->where('estado', 'Activo')
+                    ->orWhereHas('adendas');
+            })
             ->get()
             ->filter(function ($contrato) {
                 $meses = $contrato->calcularMesesAcumulados();
@@ -233,11 +305,11 @@ class ReporteController extends Controller
                     'tipo_contrato' => $contrato->tipo_contrato,
                     'fecha_inicio' => $contrato->fecha_inicio,
                     'fecha_fin' => $contrato->fecha_fin,
-                    'meses_acumulados' => $mesesAcumulados,
-                    'años_meses' => $this->formatearTiempo($mesesAcumulados),
-                    'meses_restantes' => $mesesRestantes,
+                    'meses_acumulados' => round($mesesAcumulados),
+                    'años_meses' => $contrato->calcularTiempoExacto(),
+                    'meses_restantes' => round($mesesRestantes, 1),
                     'indicador_estabilidad' => $contrato->obtenerIndicadorEstabilidad(),
-                    'alerta' => $mesesAcumulados >= 57 ? 'CRÍTICA' : 'ADVERTENCIA'
+                    'alerta' => $mesesAcumulados >= 57 ? 'CRÍTICO' : 'ADVERTENCIA'
                 ];
             })
             ->sortByDesc('meses_acumulados');
@@ -255,9 +327,11 @@ class ReporteController extends Controller
 
     /**
      * Método auxiliar: Formatear tiempo (meses a años y meses)
+     * Ahora más preciso para evitar decimales extraños
      */
     private function formatearTiempo($meses)
     {
+        $meses = round($meses);
         $años = floor($meses / 12);
         $mesesRestantes = $meses % 12;
 
@@ -283,7 +357,8 @@ class ReporteController extends Controller
      */
     private function exportarPDF($data, $titulo, $vista)
     {
-        $pdf = Pdf::loadView($vista, compact('data', 'titulo'))
+        $trabajadores = $data;
+        $pdf = Pdf::loadView($vista, compact('data', 'titulo', 'trabajadores'))
             ->setPaper('a4', 'landscape');
 
         return $pdf->download($titulo . '_' . date('Y-m-d') . '.pdf');

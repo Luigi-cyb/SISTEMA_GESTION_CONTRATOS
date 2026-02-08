@@ -14,6 +14,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use App\Services\GeneradorContratosPDF;
 use App\Services\GeneradorCodigoContrato;
+use Exception;
 
 class ContratoController extends Controller
 {
@@ -30,7 +31,8 @@ class ContratoController extends Controller
         // Búsqueda y filtros
         $search = $request->input('search');
         $estado = $request->input('estado');
-        $tipo = $request->input('tipo');
+        // $tipo = $request->input('tipo'); // Reemplazado por plantilla_id
+        $plantilla_id = $request->input('plantilla_id');
 
         // Query base con relaciones
         $query = Contrato::with('trabajador', 'plantilla');
@@ -39,7 +41,7 @@ class ContratoController extends Controller
         if ($search) {
             $query->whereHas('trabajador', function ($q) use ($search) {
                 $q->where('dni', 'like', "%{$search}%")
-                  ->orWhere('nombre_completo', 'like', "%{$search}%");
+                    ->orWhere('nombre_completo', 'like', "%{$search}%");
             });
         }
 
@@ -48,9 +50,9 @@ class ContratoController extends Controller
             $query->where('estado', $estado);
         }
 
-        // Filtro: Tipo de Contrato
-        if ($tipo) {
-            $query->where('tipo_contrato', $tipo);
+        // Filtro: Plantilla (Anteriormente Tipo)
+        if ($plantilla_id) {
+            $query->where('plantilla_id', $plantilla_id);
         }
 
         // Obtener contratos con paginación
@@ -58,15 +60,18 @@ class ContratoController extends Controller
 
         // Opciones de filtros
         $estados = ['Borrador', 'Enviado a firmar', 'Firmado', 'Activo', 'Vencido', 'Cancelado'];
-        $tipos = ['Temporal', 'Por incremento de actividad', 'Indefinido', 'Practicante'];
+        // $tipos = ['Temporal', 'Por incremento de actividad', 'Indefinido', 'Practicante'];
 
-        return view('contratos.index', compact('contratos', 'estados', 'tipos', 'search', 'estado', 'tipo'));
+        // Obtener todas las plantillas para el filtro
+        $plantillas = Plantilla::orderBy('nombre')->get();
+
+        return view('contratos.index', compact('contratos', 'estados', 'plantillas', 'search', 'estado', 'plantilla_id'));
     }
 
     /**
      * Mostrar formulario para crear nuevo contrato
      */
-    public function create(): View
+    public function create(Request $request): View
     {
         // Verificar permiso
         if (!auth()->user()->can('create.contratos')) {
@@ -84,10 +89,48 @@ class ContratoController extends Controller
             ->get();
 
         $plantillas = Plantilla::where('activa', true)->get();
-        $tipos = ['Para servicio específico', 'Por incremento de actividad', 'Otros'];
-        $horarios = ['8 horas', '14x7', '5x2', 'Otros'];
 
-        return view('contratos.create', compact('trabajadores', 'plantillas', 'tipos', 'horarios'));
+        // 1. Definir listas BASE limpias
+        $tiposBase = ['Para servicio específico', 'Por incremento de actividad'];
+        $horariosBase = ['8 horas', '14x7', '14x7 (Noche)', '21x7', '5x2'];
+
+        // 2. Definir LISTA NEGRA de valores antiguos o incorrectos que NO queremos mostrar
+        $tiposExcluidos = [
+            'Adenda - Renovación',
+            'Contrato Indefinido',
+            'Contrato Practicante',
+            'Contrato Temporal - 3 Meses',
+            'Amar',
+            'Desamar'
+        ];
+
+        $horariosExcluidos = ['Amar', 'Desamar']; // Agregar otros si es necesario
+
+        // 3. Obtener valores nuevos de la BD (Lo que el usuario agrega manualmente como "Practicante", "30x10")
+        $tiposDB = Contrato::distinct()
+            ->whereNotNull('tipo_contrato')
+            ->where('tipo_contrato', '!=', '')
+            ->whereNotIn('tipo_contrato', $tiposBase) // No duplicar base
+            ->whereNotIn('tipo_contrato', $tiposExcluidos) // FILTRAR BASURA
+            ->pluck('tipo_contrato')
+            ->toArray();
+
+        $horariosDB = Contrato::distinct()
+            ->whereNotNull('horario')
+            ->where('horario', '!=', '')
+            ->whereNotIn('horario', $horariosBase) // No duplicar base
+            ->whereNotIn('horario', $horariosExcluidos) // FILTRAR BASURA
+            ->pluck('horario')
+            ->toArray();
+
+        // 4. Fusionar final
+        $tipos = array_merge($tiposBase, $tiposDB);
+        $horarios = array_merge($horariosBase, $horariosDB);
+
+        // Obtener DNI preseleccionado si viene en la URL
+        $trabajador_dni = $request->query('trabajador_dni');
+
+        return view('contratos.create', compact('trabajadores', 'plantillas', 'tipos', 'horarios', 'trabajador_dni'));
     }
 
     /**
@@ -116,17 +159,33 @@ class ContratoController extends Controller
                 ->withInput();
         }
 
+        // Lógica para Tipo de Contrato Manual
+        $tipoContrato = $request->input('tipo_contrato_select');
+        if ($tipoContrato === 'Otros') {
+            $tipoContrato = $request->input('tipo_contrato_otro');
+        }
+        // Inyectar el valor correcto en el request para la validación y guardado
+        $request->merge(['tipo_contrato' => $tipoContrato]);
+
+        // Lógica para Horario Manual
+        $horario = $request->input('horario_select');
+        if ($horario === 'Otros') {
+            $horario = $request->input('horario_otro');
+        }
+        $request->merge(['horario' => $horario]);
+
         // ✅ VALIDACIÓN CORREGIDA - AGREGADO DNI
         $validated = $request->validate([
             'dni' => 'required|exists:trabajadores,dni',
-            'tipo_contrato' => 'required|in:Para servicio específico,Por incremento de actividad,Otros',
+            // Se relaja validación para permitir tipos manuales (requiere que BD sea VARCHAR o se actualice el ENUM)
+            'tipo_contrato' => 'required|string|max:191',
             'fecha_inicio' => 'required|date|before_or_equal:fecha_fin',
             'fecha_fin' => 'required|date|after_or_equal:fecha_inicio',
             'fecha_firma_manual' => 'nullable|date|before_or_equal:fecha_inicio',
             'tipo_salario' => 'required|in:Mensual,Jornal,Ambos',
             'salario_mensual' => 'nullable|numeric|min:0',
             'salario_jornal' => 'nullable|numeric|min:0',
-            'horario' => 'required|in:8 horas,14x7,5x2,Otros',
+            'horario' => 'required|string|max:191',
             'plantilla_id' => 'required|exists:plantillas,id',
             'beneficios_descripcion' => 'nullable|string',
         ]);
@@ -134,16 +193,16 @@ class ContratoController extends Controller
         // ✅ ========== NUEVA LÓGICA: SINCRONIZAR FECHA_INGRESO CON FECHA_INICIO ==========
         // Obtener el trabajador
         $trabajador = Trabajador::where('dni', $dni)->first();
-        
+
         if ($trabajador) {
             // Obtener la fecha_inicio del contrato que se va a crear
             $fechaInicio = Carbon::parse($validated['fecha_inicio']);
-            
+
             // SIEMPRE actualizar la fecha_ingreso del trabajador con la fecha_inicio del nuevo contrato
             $trabajador->update([
                 'fecha_ingreso' => $fechaInicio->toDateString()
             ]);
-            
+
             // Recalcular fecha_fin (sumando 3 meses a fecha_inicio)
             $validated['fecha_fin'] = $fechaInicio->copy()->addMonths(3)->toDateString();
         }
@@ -151,16 +210,16 @@ class ContratoController extends Controller
 
         // GENERAR CÓDIGO AUTOMÁTICO
         try {
-            $plantilla_id = (int)$validated['plantilla_id'];
+            $plantilla_id = (int) $validated['plantilla_id'];
             $codigoContrato = GeneradorCodigoContrato::generar($plantilla_id);
-            
+
             // Obtener el registro de codigo_contratos para almacenar su ID
             $codigoBase = GeneradorCodigoContrato::obtenerCodigoBase($plantilla_id);
             $codigoBaseFila = \App\Models\CodigoContrato::where('codigo_base', $codigoBase)->first();
-            
+
             $validated['numero_contrato'] = $codigoContrato;
             $validated['codigo_base_id'] = $codigoBaseFila->id ?? null;
-            
+
         } catch (\Exception $e) {
             return back()
                 ->with('error', '❌ Error al generar código de contrato: ' . $e->getMessage())
@@ -183,7 +242,7 @@ class ContratoController extends Controller
         $contrato = Contrato::create($validated);
 
         return redirect()->route('contratos.show', $contrato->id)
-                        ->with('success', '✅ Contrato creado exitosamente con código: ' . $codigoContrato);
+            ->with('success', '✅ Contrato creado exitosamente con código: ' . $codigoContrato);
     }
 
     /**
@@ -205,17 +264,17 @@ class ContratoController extends Controller
         // ✅ CÁLCULO REAL DE TIEMPO ACUMULADO
         // Fecha de inicio: siempre es la del contrato original
         $fechaInicio = Carbon::parse($contrato->fecha_inicio);
-        
+
         // Fecha de fin: depende si hay adendas o no
         $ultimaAdenda = $contrato->adendas()
             ->where('estado', '!=', 'Cancelada')
             ->orderBy('numero_adenda', 'desc')
             ->first();
-        
+
         // Si hay adenda válida: usar su fecha_fin
         // Si no hay adenda: usar fecha_fin del contrato original
-        $fechaFin = $ultimaAdenda 
-            ? Carbon::parse($ultimaAdenda->fecha_fin) 
+        $fechaFin = $ultimaAdenda
+            ? Carbon::parse($ultimaAdenda->fecha_fin)
             : Carbon::parse($contrato->fecha_fin);
 
         // ✅ CALCULAR DIFERENCIA REAL EN MESES (con decimales)
@@ -225,7 +284,7 @@ class ContratoController extends Controller
         $años_completos = intval($meses_totales / 12); // Años completos
         $meses_restantes = intval($meses_totales % 12); // Meses después de años completos
         $dias_adicionales = round(($meses_totales - intval($meses_totales)) * 30.44); // Días decimales
-        
+
         // Meses totales (sin años)
         $meses_acumulados = intval($meses_totales);
 
@@ -236,14 +295,16 @@ class ContratoController extends Controller
             $texto_tiempo_completo .= $años_completos . ' año' . ($años_completos != 1 ? 's' : '');
         }
         if ($meses_restantes > 0) {
-            if ($texto_tiempo_completo != '') $texto_tiempo_completo .= ', ';
+            if ($texto_tiempo_completo != '')
+                $texto_tiempo_completo .= ', ';
             $texto_tiempo_completo .= $meses_restantes . ' mes' . ($meses_restantes != 1 ? 'es' : '');
         }
         if ($dias_adicionales > 0) {
-            if ($texto_tiempo_completo != '') $texto_tiempo_completo .= ' y ';
+            if ($texto_tiempo_completo != '')
+                $texto_tiempo_completo .= ' y ';
             $texto_tiempo_completo .= $dias_adicionales . ' día' . ($dias_adicionales != 1 ? 's' : '');
         }
-        
+
         // Texto 2: "X meses y Y días" (solo meses totales sin años)
         $texto_meses_dias = $meses_restantes . ' mes' . ($meses_restantes != 1 ? 'es' : '');
         if ($dias_adicionales > 0) {
@@ -257,15 +318,15 @@ class ContratoController extends Controller
 
         // ✅ DÍAS RESTANTES PRECISOS (desde HOY hasta fecha_fin)
         $ahora = now();
-        
+
         // Calcular diferencia exacta en días (incluyendo fracciones)
         $diasExactos = $ahora->floatDiffInDays($fechaFin, false);
-        
+
         // Si es negativo, es 0
         if ($diasExactos < 0) {
             $diasExactos = 0;
         }
-        
+
         // Separar días enteros y horas
         $dias_para_vencer = intval($diasExactos); // Días enteros
         $fraccionDia = $diasExactos - $dias_para_vencer; // La parte decimal
@@ -309,16 +370,56 @@ class ContratoController extends Controller
     /**
      * Mostrar formulario para editar contrato
      */
-    public function edit(Contrato $contrato): View
+    public function edit($id): View
     {
+        // Verificar permiso
         if (!auth()->user()->can('edit.contratos')) {
             abort(403, 'No tienes permiso para editar contratos.');
         }
 
-        $trabajadores = Trabajador::all();
+        $contrato = Contrato::with('trabajador', 'plantilla')->findOrFail($id);
+        $trabajadores = Trabajador::where('estado', 'Activo')->orderBy('nombre_completo')->get();
         $plantillas = Plantilla::where('activa', true)->get();
-        $tipos = ['Para servicio específico', 'Por incremento de actividad', 'Otros'];
-        $horarios = ['8 horas', '14x7', '5x2', 'Otros'];
+
+        // 1. Definir listas BASE limpias
+        $tiposBase = ['Para servicio específico', 'Por incremento de actividad'];
+        $horariosBase = ['8 horas', '14x7', '14x7 (Noche)', '21x7', '5x2'];
+
+        // 2. Definir LISTA NEGRA
+        $tiposExcluidos = [
+            'Adenda - Renovación',
+            'Contrato Indefinido',
+            'Contrato Practicante',
+            'Contrato Temporal - 3 Meses',
+            'Amar',
+            'Desamar'
+        ];
+
+        $horariosExcluidos = ['Amar', 'Desamar'];
+
+        // 3. Obtener valores nuevos de la BD
+        $tiposDB = Contrato::distinct()
+            ->whereNotNull('tipo_contrato')
+            ->where('tipo_contrato', '!=', '')
+            ->whereNotIn('tipo_contrato', $tiposBase)
+            ->whereNotIn('tipo_contrato', $tiposExcluidos)
+            ->pluck('tipo_contrato')
+            ->toArray();
+
+        $horariosDB = Contrato::distinct()
+            ->whereNotNull('horario')
+            ->where('horario', '!=', '')
+            ->whereNotIn('horario', $horariosBase)
+            ->whereNotIn('horario', $horariosExcluidos)
+            ->pluck('horario')
+            ->toArray();
+
+        // 4. Fusionar final
+        $tipos = array_merge($tiposBase, $tiposDB);
+        $horarios = array_merge($horariosBase, $horariosDB);
+
+        // Asegurar que el valor actual del contrato esté en la lista si no es uno de los excluidos
+        // (Si es excluido, se mostrará como "Otros" o se forzará en la vista, pero mejor dejarlo como está)
 
         return view('contratos.edit', compact('contrato', 'trabajadores', 'plantillas', 'tipos', 'horarios'));
     }
@@ -333,16 +434,30 @@ class ContratoController extends Controller
             abort(403, 'No tienes permiso para editar contratos.');
         }
 
+        // Lógica para Tipo de Contrato Manual
+        $tipoContrato = $request->input('tipo_contrato_select');
+        if ($tipoContrato === 'Otros') {
+            $tipoContrato = $request->input('tipo_contrato_otro');
+        }
+        $request->merge(['tipo_contrato' => $tipoContrato]);
+
+        // Lógica para Horario Manual
+        $horario = $request->input('horario_select');
+        if ($horario === 'Otros') {
+            $horario = $request->input('horario_otro');
+        }
+        $request->merge(['horario' => $horario]);
+
         // Validar datos
         $validated = $request->validate([
-            'tipo_contrato' => 'required|in:Para servicio específico,Por incremento de actividad,Otros',
+            'tipo_contrato' => 'required|string|max:191',
             'fecha_inicio' => 'required|date|before_or_equal:fecha_fin',
             'fecha_fin' => 'required|date|after_or_equal:fecha_inicio',
             'fecha_firma_manual' => 'nullable|date|before_or_equal:fecha_inicio',
             'tipo_salario' => 'required|in:Mensual,Jornal,Ambos',
             'salario_mensual' => 'nullable|numeric|min:0',
             'salario_jornal' => 'nullable|numeric|min:0',
-            'horario' => 'required|in:8 horas,14x7,5x2,Otros',
+            'horario' => 'required|string|max:191',
             'plantilla_id' => 'nullable|exists:plantillas,id',
             'beneficios_descripcion' => 'nullable|string',
             'estado' => 'required|in:Borrador,Enviado a firmar,Firmado,Activo,Vencido,Cancelado',
@@ -358,7 +473,7 @@ class ContratoController extends Controller
         $contrato->update($validated);
 
         return redirect()->route('contratos.show', $contrato->id)
-                        ->with('success', '✅ Contrato actualizado exitosamente.');
+            ->with('success', '✅ Contrato actualizado exitosamente.');
     }
 
     /**
@@ -379,7 +494,7 @@ class ContratoController extends Controller
         $contrato->delete();
 
         return redirect()->route('contratos.index')
-                        ->with('success', '✅ Contrato eliminado exitosamente.');
+            ->with('success', '✅ Contrato eliminado exitosamente.');
     }
 
     /**
@@ -404,9 +519,18 @@ class ContratoController extends Controller
 
             // Array de meses
             $meses = [
-                1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
-                5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
-                9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'
+                1 => 'Enero',
+                2 => 'Febrero',
+                3 => 'Marzo',
+                4 => 'Abril',
+                5 => 'Mayo',
+                6 => 'Junio',
+                7 => 'Julio',
+                8 => 'Agosto',
+                9 => 'Septiembre',
+                10 => 'Octubre',
+                11 => 'Noviembre',
+                12 => 'Diciembre'
             ];
 
             // Generar $bgData
@@ -417,39 +541,63 @@ class ContratoController extends Controller
             }
 
             // Función para convertir números a letras
-            $numeroEnLetras = function($num) {
+            $numeroEnLetras = function ($num) {
                 $unidades = array(
-                    0 => 'cero', 1 => 'uno', 2 => 'dos', 3 => 'tres', 4 => 'cuatro',
-                    5 => 'cinco', 6 => 'seis', 7 => 'siete', 8 => 'ocho', 9 => 'nueve',
-                    10 => 'diez', 11 => 'once', 12 => 'doce', 13 => 'trece', 14 => 'catorce',
-                    15 => 'quince', 16 => 'dieciséis', 17 => 'diecisiete', 18 => 'dieciocho',
-                    19 => 'diecinueve', 20 => 'veinte', 21 => 'veintiuno', 22 => 'veintidós',
-                    23 => 'veintitrés', 24 => 'veinticuatro', 25 => 'veinticinco', 26 => 'veintiséis',
-                    27 => 'veintisiete', 28 => 'veintiocho', 29 => 'veintinueve', 30 => 'treinta',
+                    0 => 'cero',
+                    1 => 'uno',
+                    2 => 'dos',
+                    3 => 'tres',
+                    4 => 'cuatro',
+                    5 => 'cinco',
+                    6 => 'seis',
+                    7 => 'siete',
+                    8 => 'ocho',
+                    9 => 'nueve',
+                    10 => 'diez',
+                    11 => 'once',
+                    12 => 'doce',
+                    13 => 'trece',
+                    14 => 'catorce',
+                    15 => 'quince',
+                    16 => 'dieciséis',
+                    17 => 'diecisiete',
+                    18 => 'dieciocho',
+                    19 => 'diecinueve',
+                    20 => 'veinte',
+                    21 => 'veintiuno',
+                    22 => 'veintidós',
+                    23 => 'veintitrés',
+                    24 => 'veinticuatro',
+                    25 => 'veinticinco',
+                    26 => 'veintiséis',
+                    27 => 'veintisiete',
+                    28 => 'veintiocho',
+                    29 => 'veintinueve',
+                    30 => 'treinta',
                     31 => 'treinta y uno'
                 );
-                return $unidades[$num] ?? (string)$num;
+                return $unidades[$num] ?? (string) $num;
             };
 
             // Obtener código automático del contrato
             $codigoContrato = $contrato->codigo_contrato ?? $contrato->numero_contrato;
-            
+
             // Obtener fecha de firma
-            $fechaFirma = $contrato->fecha_firma_real ?? $contrato->fecha_inicio->copy()->subDay();
+            $fechaFirma = $contrato->fecha_firma_real ?? Carbon::parse($contrato->fecha_inicio)->copy()->subDay();
 
             // ✅ DETERMINAR TEXTO DINÁMICO DE RETRIBUCIÓN
             $tipoSalario = $contrato->tipo_salario;
             $textoRetribucion = '';
-            
+
             if ($tipoSalario === 'Mensual') {
                 $salarioMensual = $contrato->salario_mensual ?? 0;
-                $textoRetribucion = "El trabajador percibirá como contraprestación por los servicios prestados un Sueldo Mensual de S/. " 
-                    . number_format($salarioMensual, 2) 
+                $textoRetribucion = "El trabajador percibirá como contraprestación por los servicios prestados un Sueldo Mensual de S/. "
+                    . number_format($salarioMensual, 2)
                     . " (" . strtoupper($numeroEnLetras(intval($salarioMensual))) . " soles), monto que le será abonado en forma mensual.";
             } elseif ($tipoSalario === 'Jornal') {
                 $salarioJornal = $contrato->salario_jornal ?? 0;
-                $textoRetribucion = "El trabajador percibirá como contraprestación por los servicios prestados un Jornal diario de S/. " 
-                    . number_format($salarioJornal, 2) 
+                $textoRetribucion = "El trabajador percibirá como contraprestación por los servicios prestados un Jornal diario de S/. "
+                    . number_format($salarioJornal, 2)
                     . " (" . strtoupper($numeroEnLetras(intval($salarioJornal))) . " soles), monto que le será abonado en forma mensual.";
             }
 
@@ -479,7 +627,7 @@ class ContratoController extends Controller
                 ->setOption('margin-right', 0);
 
             $nombreArchivo = 'CONTRATO_' . $contrato->numero_contrato . '_' . $contrato->trabajador->nombre_completo . '.pdf';
-            
+
             return $pdf->download($nombreArchivo);
 
         } catch (\Exception $e) {
@@ -499,29 +647,29 @@ class ContratoController extends Controller
 
         // Validar archivo
         $validated = $request->validate([
-            'contrato_firmado' => 'required|file|mimes:pdf|max:10240',
+            'contrato_firmado' => 'required|file|extensions:pdf|max:10240',
         ], [
             'contrato_firmado.required' => 'Debe seleccionar el contrato firmado escaneado',
             'contrato_firmado.file' => 'El archivo debe ser un archivo válido',
-            'contrato_firmado.mimes' => 'El archivo debe ser PDF',
+            'contrato_firmado.extensions' => 'El archivo debe ser un PDF válido (extension .pdf)',
             'contrato_firmado.max' => 'El archivo no puede exceder 10MB',
         ]);
 
         // Procesar archivo
         if ($request->hasFile('contrato_firmado')) {
             $file = $request->file('contrato_firmado');
-            
+
             // Eliminar archivo anterior si existe
             if ($contrato->url_documento_escaneado && Storage::disk('public')->exists($contrato->url_documento_escaneado)) {
                 Storage::disk('public')->delete($contrato->url_documento_escaneado);
             }
-            
+
             // Generar nombre único
-            $nombreArchivo = 'contrato_firmado_' 
-                . $contrato->numero_contrato 
-                . '_' . time() 
+            $nombreArchivo = 'contrato_firmado_'
+                . $contrato->numero_contrato
+                . '_' . time()
                 . '.pdf';
-            
+
             // Guardar archivo
             $rutaArchivo = $file->storeAs('contratos/firmados', $nombreArchivo, 'public');
 
@@ -555,9 +703,9 @@ class ContratoController extends Controller
         }
 
         // Descargar con nombre descriptivo
-        $nombreArchivo = 'CONTRATO_FIRMADO_' 
-            . $contrato->numero_contrato 
-            . '_' . $contrato->trabajador->nombre_completo 
+        $nombreArchivo = 'CONTRATO_FIRMADO_'
+            . $contrato->numero_contrato
+            . '_' . $contrato->trabajador->nombre_completo
             . '.pdf';
 
         return Storage::disk('public')->download($contrato->url_documento_escaneado, $nombreArchivo);
@@ -605,10 +753,18 @@ class ContratoController extends Controller
                 'contrato' => $contrato,
                 'trabajador' => $trabajador,
                 'meses' => [
-                    1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo',
-                    4 => 'Abril', 5 => 'Mayo', 6 => 'Junio',
-                    7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre',
-                    10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'
+                    1 => 'Enero',
+                    2 => 'Febrero',
+                    3 => 'Marzo',
+                    4 => 'Abril',
+                    5 => 'Mayo',
+                    6 => 'Junio',
+                    7 => 'Julio',
+                    8 => 'Agosto',
+                    9 => 'Septiembre',
+                    10 => 'Octubre',
+                    11 => 'Noviembre',
+                    12 => 'Diciembre'
                 ]
             ];
 

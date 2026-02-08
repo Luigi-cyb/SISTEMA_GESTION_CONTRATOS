@@ -57,7 +57,7 @@ class ListaNegraController extends Controller
      * Mostrar formulario para agregar trabajador a lista negra
      * GET /lista-negra/create
      */
-    public function create()
+    public function create(Request $request)
     {
         // Verificar permiso
         if (!Auth::user()->hasPermissionTo('create.lista_negra')) {
@@ -66,15 +66,18 @@ class ListaNegraController extends Controller
 
         // CORREGIDO: Obtener trabajadores que NO están en lista negra o están desbloqueados
         $trabajadores = Trabajador::leftJoin('lista_negra', 'trabajadores.dni', '=', 'lista_negra.dni')
-            ->where(function($query) {
+            ->where(function ($query) {
                 $query->whereNull('lista_negra.dni')
-                      ->orWhere('lista_negra.estado', 'Desbloqueado');
+                    ->orWhere('lista_negra.estado', 'Desbloqueado');
             })
             ->select('trabajadores.*')
             ->orderBy('trabajadores.nombre_completo')
             ->get();
 
-        return view('lista_negra.create', compact('trabajadores'));
+        // Obtener DNI preseleccionado si viene en la URL
+        $trabajador_dni = $request->query('trabajador_dni');
+
+        return view('lista_negra.create', compact('trabajadores', 'trabajador_dni'));
     }
 
     /**
@@ -104,7 +107,7 @@ class ListaNegraController extends Controller
             'descripcion_motivo.required' => 'La descripción del motivo es requerida',
             'descripcion_motivo.max' => 'La descripción no puede exceder 1000 caracteres',
             'documento_informe.file' => 'El documento debe ser un archivo',
-            'documento_informe.mimes' => 'El documento debe ser PDF, JPG, JPEG o PNG',
+            'documento_informe.mimes' => 'El documento debe ser un PDF o imagen válida (JPG, PNG)',
             'documento_informe.max' => 'El documento no puede exceder 5MB',
         ]);
 
@@ -127,7 +130,7 @@ class ListaNegraController extends Controller
 
         // CORREGIDO: Crear registro en lista negra con campos correctos
         $puedeDesbloquear = ($validated['motivo'] === 'Leve') ? 1 : 0;
-        
+
         $listaNegra = ListaNegra::create([
             'dni' => $validated['dni'],
             'motivo' => $validated['motivo'],
@@ -214,7 +217,7 @@ class ListaNegraController extends Controller
             'motivo_desbloqueo.max' => 'El motivo no puede exceder 500 caracteres',
             'documento_carta.required' => 'La carta de compromiso es requerida',
             'documento_carta.file' => 'El documento debe ser un archivo',
-            'documento_carta.mimes' => 'El documento debe ser PDF, JPG, JPEG o PNG',
+            'documento_carta.mimes' => 'El documento debe ser un PDF o imagen válida (JPG, PNG)',
             'documento_carta.max' => 'El documento no puede exceder 5MB',
         ]);
 

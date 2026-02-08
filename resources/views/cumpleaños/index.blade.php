@@ -7,10 +7,17 @@
             <div class="bg-white shadow-sm sm:rounded-lg mb-6">
                 <div class="p-6">
                     <div class="flex justify-between items-center">
-                        <div>
-                            <h1 class="text-2xl font-semibold text-gray-900">Gestión de Cumpleaños</h1>
-                            <p class="text-sm text-gray-600 mt-1">Seguimiento y entrega de regalos a colaboradores</p>
+                    <div class="flex items-center">
+                        <div style="background: #fdf2f8; color: #db2777; padding: 12px; border-radius: 16px; margin-right: 20px; box-shadow: 0 4px 6px -1px rgba(219, 39, 119, 0.1);">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path>
+                            </svg>
                         </div>
+                        <div>
+                            <h1 class="text-2xl font-bold text-gray-900">Gestión de Cumpleaños</h1>
+                            <p class="text-sm font-semibold text-gray-500 mt-1">Seguimiento y entrega de regalos a colaboradores</p>
+                        </div>
+                    </div>
                         <div class="text-xs text-gray-600 bg-blue-50 px-3 py-2 rounded-md border border-blue-200">
                             Sincronización automática activada
                         </div>
@@ -70,17 +77,38 @@
                 </div>
             @endif
 
-            <!-- Estadísticas rápidas -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <!-- Total Cumpleaños -->
-                <div class="bg-white shadow-sm sm:rounded-lg border border-gray-200 p-6">
+            <!-- Estadísticas rápidas: Diseño Corporativo en 1 Fila -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-12">
+                <!-- Total Registrados -->
+                <div
+                    class="bg-white rounded-xl border-l-4 border-l-blue-600 shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Registrados</p>
-                            <p class="text-3xl font-bold text-gray-900 mt-2">{{ $cumpleaños->count() }}</p>
+                            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Total Registrados</p>
+                            <p class="text-3xl font-black text-blue-900 mt-2 tracking-tight">{{ $cumpleaños->count() }}</p>
                         </div>
-                        <div class="bg-blue-100 rounded-full p-3">
+                        <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
                             <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Próximos 5 Días -->
+                <div
+                    class="bg-white rounded-xl border-l-4 border-l-rose-600 shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Próximos 5 Días</p>
+                            <p class="text-3xl font-black text-rose-700 mt-2 tracking-tight">
+                                {{ $cumpleaños->where('dias_restantes', '<=', 5)->count() }}
+                            </p>
+                        </div>
+                        <div class="bg-rose-50 p-3 rounded-lg border border-rose-100">
+                            <svg class="w-6 h-6 text-rose-600 animate-pulse" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
@@ -88,33 +116,18 @@
                     </div>
                 </div>
 
-                <!-- Próximos 5 días -->
-                <div class="bg-white shadow-sm sm:rounded-lg border border-gray-200 p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Próximos 5 Días</p>
-                            <p class="text-3xl font-bold text-gray-900 mt-2">
-                                {{ $cumpleaños->where('dias_restantes', '<=', 5)->count() }}</p>
-                        </div>
-                        <div class="bg-red-100 rounded-full p-3">
-                            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Regalos Entregados -->
-                <div class="bg-white shadow-sm sm:rounded-lg border border-gray-200 p-6">
+                <div
+                    class="bg-white rounded-xl border-l-4 border-l-emerald-600 shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Regalos Entregados</p>
-                            <p class="text-3xl font-bold text-gray-900 mt-2">
-                                {{ $cumpleaños->where('giftcard_entregada', true)->count() }}</p>
+                            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Regalos Entregados</p>
+                            <p class="text-3xl font-black text-emerald-700 mt-2 tracking-tight">
+                                {{ $cumpleaños->where('giftcard_entregada', true)->count() }}
+                            </p>
                         </div>
-                        <div class="bg-green-100 rounded-full p-3">
-                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                            <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
@@ -123,17 +136,19 @@
                 </div>
 
                 <!-- Regalos Pendientes -->
-                <div class="bg-white shadow-sm sm:rounded-lg border border-gray-200 p-6">
+                <div
+                    class="bg-white rounded-xl border-l-4 border-l-amber-600 shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Regalos Pendientes</p>
-                            <p class="text-3xl font-bold text-gray-900 mt-2">
-                                {{ $cumpleaños->where('giftcard_entregada', false)->count() }}</p>
+                            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Regalos Pendientes</p>
+                            <p class="text-3xl font-black text-amber-700 mt-2 tracking-tight">
+                                {{ $cumpleaños->where('giftcard_entregada', false)->count() }}
+                            </p>
                         </div>
-                        <div class="bg-yellow-100 rounded-full p-3">
-                            <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="bg-amber-50 p-3 rounded-lg border border-amber-100">
+                            <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
                             </svg>
                         </div>
                     </div>
@@ -141,7 +156,7 @@
             </div>
 
             <!-- Filtros y Búsqueda -->
-            <div class="bg-white shadow-sm sm:rounded-lg mb-6">
+            <div class="bg-white shadow-sm sm:rounded-lg mb-6 mt-8">
                 <div class="p-6">
                     <form method="GET" action="{{ route('cumpleaños.index') }}" id="filtrosForm" class="space-y-4">
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -153,9 +168,11 @@
                                 <select name="dias" id="dias"
                                     class="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                     <option value="5" {{ request('dias', 5) == 5 ? 'selected' : '' }}>5 días</option>
-                                    <option value="7" {{ request('dias') == 7 ? 'selected' : '' }}>7 días (1 semana)</option>
+                                    <option value="7" {{ request('dias') == 7 ? 'selected' : '' }}>7 días (1 semana)
+                                    </option>
                                     <option value="15" {{ request('dias') == 15 ? 'selected' : '' }}>15 días</option>
-                                    <option value="30" {{ request('dias') == 30 ? 'selected' : '' }}>30 días (1 mes)</option>
+                                    <option value="30" {{ request('dias') == 30 ? 'selected' : '' }}>30 días (1 mes)
+                                    </option>
                                     <option value="60" {{ request('dias') == 60 ? 'selected' : '' }}>60 días</option>
                                     <option value="90" {{ request('dias') == 90 ? 'selected' : '' }}>90 días</option>
                                 </select>
@@ -248,8 +265,10 @@
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm font-medium text-gray-900">
-                                            {{ $cumple->trabajador->nombre_completo }}</div>
-                                        <div class="text-sm text-gray-500">{{ $cumple->trabajador->cargo ?? 'Sin cargo' }}</div>
+                                            {{ $cumple->trabajador->nombre_completo }}
+                                        </div>
+                                        <div class="text-sm text-gray-500">{{ $cumple->trabajador->cargo ?? 'Sin cargo' }}
+                                        </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm text-gray-900">
